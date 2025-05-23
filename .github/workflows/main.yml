@@ -65,6 +65,7 @@ jobs:
 
       - name: Check keybox.xml with main.py
         id: check_keybox
+        if: env.SKIP_RELEASE == 'false'
         run: |
           keybox_path="$GITHUB_WORKSPACE/keybox.xml"
           [ -f "$keybox_path" ] || exit 1
