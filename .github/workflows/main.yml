@@ -44,6 +44,40 @@ jobs:
             exit 1
           fi
 
+      - name: Compute hash of new keybox.xml
+        run: |
+          if [ -f "keybox.xml" ]; then
+            NEW_HASH=$(sha256sum keybox.xml | awk '{print $1}')
+            echo "NEW_HASH=$NEW_HASH" >> $GITHUB_ENV
+            echo "Computed SHA256 hash of new keybox.xml: $NEW_HASH"
+          else
+            echo "Error: keybox.xml not found for hashing"
+            exit 1
+          fi
+
+      - name: Download previous keybox.xml from release
+        run: |
+          sudo apt-get update && sudo apt-get install -y gh
+          if gh release download keybox --repo $GITHUB_REPOSITORY --output keybox.xml.prev 2>/dev/null; then
+            echo "Successfully downloaded previous keybox.xml"
+            PREV_HASH=$(sha256sum keybox.xml.prev | awk '{print $1}')
+            echo "PREV_HASH=$PREV_HASH" >> $GITHUB_ENV
+            echo "Computed SHA256 hash of previous keybox.xml: $PREV_HASH"
+          else
+            echo "No previous release found, setting PREV_HASH to empty"
+            echo "PREV_HASH=" >> $GITHUB_ENV
+          fi
+
+      - name: Compare hashes and decide action
+        run: |
+          if [ "${{ env.PREV_HASH }}" == "${{ env.NEW_HASH }}" ] && [ -n "${{ env.PREV_HASH }}" ]; then
+            echo "Hashes match, skipping release update"
+            echo "SKIP_RELEASE=true" >> $GITHUB_ENV
+          else
+            echo "Hashes differ or no previous release, proceeding with release update"
+            echo "SKIP_RELEASE=false" >> $GITHUB_ENV
+          fi
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -71,27 +105,26 @@ jobs:
           fi
 
       - name: Upload keybox.xml as artifact
+        if: env.SKIP_RELEASE == 'false'
         uses: actions/upload-artifact@v4
         with:
           name: keybox
           path: keybox.xml
 
       - name: Create or update release with keybox.xml
+        if: env.SKIP_RELEASE == 'false'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           sudo apt-get update && sudo apt-get install -y gh
           
-          # Check if release with tag 'keybox' exists
           if gh release view keybox --repo $GITHUB_REPOSITORY >/dev/null 2>&1; then
-            # Update existing release notes
             gh release edit keybox \
               --title "Keybox Release" \
               --notes "$KEYBOX_CHECK_OUTPUT" \
               --repo $GITHUB_REPOSITORY
             echo "Successfully updated release notes for tag 'keybox'"
           else
-            # Create new release
             gh release create keybox \
               --title "Keybox Release" \
               --notes "$KEYBOX_CHECK_OUTPUT" \
@@ -99,7 +132,6 @@ jobs:
             echo "Successfully created new release with tag 'keybox'"
           fi
           
-          # Upload keybox.xml to the release
           if [ -f "keybox.xml" ]; then
             gh release upload keybox keybox.xml --clobber --repo $GITHUB_REPOSITORY
             echo "Successfully uploaded keybox.xml to release with tag 'keybox'"
