@@ -1,0 +1,67 @@
+name: Keybox Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *'
+
+jobs:
+  decrypt-keybox:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y openssl curl
+
+      - name: Download keybox.xml.enc
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/MeowDump/Integrity-Box/main/keybox.xml.enc -o keybox.xml.enc
+          if [ -s "keybox.xml.enc" ]; then
+            echo "Successfully downloaded keybox.xml.enc"
+          else
+            echo "Error: Failed to download keybox.xml.enc or file is empty"
+            exit 1
+          fi
+
+      - name: Decrypt keybox.xml.enc
+        run: |
+          if [ -f "keybox.xml.enc" ]; then
+            openssl enc -aes-256-cbc -d -pbkdf2 -in keybox.xml.enc -out keybox.xml -k true
+            if [ $? -eq 0 ]; then
+              echo "Successfully decrypted keybox.xml.enc to keybox.xml"
+            else
+              echo "Error: Failed to decrypt keybox.xml.enc"
+              exit 1
+            fi
+          else
+            echo "Error: keybox.xml.enc not found"
+            exit 1
+          fi
+
+      - name: Upload keybox.xml as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: keybox
+          path: keybox.xml
+
+      - name: Create or update release with keybox.xml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sudo apt-get update && sudo apt-get install -y gh
+          
+          gh release create keybox --title "Keybox Release" --notes "Automated release of keybox.xml" || true
+          
+          if [ -f "keybox.xml" ]; then
+            gh release upload keybox keybox.xml --clobber
+            echo "Successfully uploaded keybox.xml to release with tag 'keybox'"
+          else
+            echo "Error: keybox.xml not found for release upload"
+            exit 1
+          fi
