@@ -54,18 +54,20 @@ jobs:
           fi
 
       - name: Set up Python
+        if: env.SKIP_RELEASE == 'false'
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
       - name: Install Python dependencies
+        if: env.SKIP_RELEASE == 'false'
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Check keybox.xml with main.py
-        id: check_keybox
         if: env.SKIP_RELEASE == 'false'
+        id: check_keybox
         run: |
           keybox_path="$GITHUB_WORKSPACE/keybox.xml"
           [ -f "$keybox_path" ] || exit 1
