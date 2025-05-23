@@ -17,64 +17,36 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y openssl curl
+        run: sudo apt-get update && sudo apt-get install -y openssl curl gh
 
       - name: Download keybox.xml.enc
         run: |
           curl -fsSL https://raw.githubusercontent.com/MeowDump/Integrity-Box/main/keybox.xml.enc -o keybox.xml.enc
-          if [ -s "keybox.xml.enc" ]; then
-            echo "Successfully downloaded keybox.xml.enc"
-          else
-            echo "Error: Failed to download keybox.xml.enc or file is empty"
-            exit 1
-          fi
+          [ -s "keybox.xml.enc" ] || exit 1
 
       - name: Decrypt keybox.xml.enc
         run: |
-          if [ -f "keybox.xml.enc" ]; then
-            openssl enc -aes-256-cbc -d -pbkdf2 -in keybox.xml.enc -out keybox.xml -k true
-            if [ $? -eq 0 ]; then
-              echo "Successfully decrypted keybox.xml.enc to keybox.xml"
-            else
-              echo "Error: Failed to decrypt keybox.xml.enc"
-              exit 1
-            fi
-          else
-            echo "Error: keybox.xml.enc not found"
-            exit 1
-          fi
+          [ -f "keybox.xml.enc" ] || exit 1
+          openssl enc -aes-256-cbc -d -pbkdf2 -in keybox.xml.enc -out keybox.xml -k true || exit 1
 
       - name: Compute hash of new keybox.xml
         run: |
-          if [ -f "keybox.xml" ]; then
-            NEW_HASH=$(sha256sum keybox.xml | awk '{print $1}')
-            echo "NEW_HASH=$NEW_HASH" >> $GITHUB_ENV
-            echo "Computed SHA256 hash of new keybox.xml: $NEW_HASH"
-          else
-            echo "Error: keybox.xml not found for hashing"
-            exit 1
-          fi
+          [ -f "keybox.xml" ] || exit 1
+          echo "NEW_HASH=$(sha256sum keybox.xml | awk '{print $1}')" >> $GITHUB_ENV
 
       - name: Download previous keybox.xml from release
         run: |
-          sudo apt-get update && sudo apt-get install -y gh
           if gh release download keybox --repo $GITHUB_REPOSITORY --output keybox.xml.prev 2>/dev/null; then
-            echo "Successfully downloaded previous keybox.xml"
-            PREV_HASH=$(sha256sum keybox.xml.prev | awk '{print $1}')
-            echo "PREV_HASH=$PREV_HASH" >> $GITHUB_ENV
-            echo "Computed SHA256 hash of previous keybox.xml: $PREV_HASH"
+            echo "PREV_HASH=$(sha256sum keybox.xml.prev | awk '{print $1}')" >> $GITHUB_ENV
           else
-            echo "No previous release found, setting PREV_HASH to empty"
             echo "PREV_HASH=" >> $GITHUB_ENV
           fi
 
       - name: Compare hashes and decide action
         run: |
           if [ "${{ env.PREV_HASH }}" == "${{ env.NEW_HASH }}" ] && [ -n "${{ env.PREV_HASH }}" ]; then
-            echo "Hashes match, skipping release update"
             echo "SKIP_RELEASE=true" >> $GITHUB_ENV
           else
-            echo "Hashes differ or no previous release, proceeding with release update"
             echo "SKIP_RELEASE=false" >> $GITHUB_ENV
           fi
 
@@ -92,17 +64,11 @@ jobs:
         id: check_keybox
         run: |
           keybox_path="$GITHUB_WORKSPACE/keybox.xml"
-          if [ -f "$keybox_path" ]; then
-            output=$(python main.py "$keybox_path")
-            echo "KEYBOX_CHECK_OUTPUT<<EOF" >> $GITHUB_ENV
-            echo "$output" >> $GITHUB_ENV
-            echo "EOF" >> $GITHUB_ENV
-            echo "Keybox check output:"
-            echo "$output"
-          else
-            echo "Error: keybox.xml not found at $keybox_path"
-            exit 1
-          fi
+          [ -f "$keybox_path" ] || exit 1
+          output=$(python main.py "$keybox_path")
+          echo "KEYBOX_CHECK_OUTPUT<<EOF" >> $GITHUB_ENV
+          echo "$output" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
       - name: Upload keybox.xml as artifact
         if: env.SKIP_RELEASE == 'false'
@@ -116,26 +82,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          sudo apt-get update && sudo apt-get install -y gh
-          
           if gh release view keybox --repo $GITHUB_REPOSITORY >/dev/null 2>&1; then
             gh release edit keybox \
               --title "Keybox Release" \
               --notes "$KEYBOX_CHECK_OUTPUT" \
               --repo $GITHUB_REPOSITORY
-            echo "Successfully updated release notes for tag 'keybox'"
           else
             gh release create keybox \
               --title "Keybox Release" \
               --notes "$KEYBOX_CHECK_OUTPUT" \
               --repo $GITHUB_REPOSITORY
-            echo "Successfully created new release with tag 'keybox'"
           fi
-          
-          if [ -f "keybox.xml" ]; then
-            gh release upload keybox keybox.xml --clobber --repo $GITHUB_REPOSITORY
-            echo "Successfully uploaded keybox.xml to release with tag 'keybox'"
-          else
-            echo "Error: keybox.xml not found for release upload"
-            exit 1
-          fi
+          [ -f "keybox.xml" ] || exit 1
+          gh release upload keybox keybox.xml --clobber --repo $GITHUB_REPOSITORY
