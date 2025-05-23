@@ -34,10 +34,13 @@ jobs:
           [ -f "keybox.xml" ] || exit 1
           echo "NEW_HASH=$(sha256sum keybox.xml | awk '{print $1}')" >> $GITHUB_ENV
 
-      - name: Download previous keybox.xml from release
+      - name: Check and download previous keybox.xml from release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release download keybox --repo $GITHUB_REPOSITORY --output keybox.xml.prev 2>/dev/null; then
-            echo "PREV_HASH=$(sha256sum keybox.xml.prev | awk '{print $1}')" >> $GITHUB_ENV
+          if gh release view keybox --repo $GITHUB_REPOSITORY >/dev/null 2>&1; then
+            gh release download keybox --repo $GITHUB_REPOSITORY --pattern "keybox.xml" --output keybox.xml.prev || exit 1
+            [ -f "keybox.xml.prev" ] && echo "PREV_HASH=$(sha256sum keybox.xml.prev | awk '{print $1}')" >> $GITHUB_ENV || echo "PREV_HASH=" >> $GITHUB_ENV
           else
             echo "PREV_HASH=" >> $GITHUB_ENV
           fi
