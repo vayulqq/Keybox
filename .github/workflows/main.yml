@@ -82,13 +82,26 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y gh
           
-          gh release create keybox \
-            --title "Keybox Release" \
-            --notes "$KEYBOX_CHECK_OUTPUT" \
-            || true
+          # Check if release with tag 'keybox' exists
+          if gh release view keybox --repo $GITHUB_REPOSITORY >/dev/null 2>&1; then
+            # Update existing release notes
+            gh release edit keybox \
+              --title "Keybox Release" \
+              --notes "$KEYBOX_CHECK_OUTPUT" \
+              --repo $GITHUB_REPOSITORY
+            echo "Successfully updated release notes for tag 'keybox'"
+          else
+            # Create new release
+            gh release create keybox \
+              --title "Keybox Release" \
+              --notes "$KEYBOX_CHECK_OUTPUT" \
+              --repo $GITHUB_REPOSITORY
+            echo "Successfully created new release with tag 'keybox'"
+          fi
           
+          # Upload keybox.xml to the release
           if [ -f "keybox.xml" ]; then
-            gh release upload keybox keybox.xml --clobber
+            gh release upload keybox keybox.xml --clobber --repo $GITHUB_REPOSITORY
             echo "Successfully uploaded keybox.xml to release with tag 'keybox'"
           else
             echo "Error: keybox.xml not found for release upload"
