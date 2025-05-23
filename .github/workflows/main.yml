@@ -57,15 +57,16 @@ jobs:
       - name: Check keybox.xml with main.py
         id: check_keybox
         run: |
-          if [ -f "keybox.xml" ]; then
-            output=$(python main.py keybox.xml)
+          keybox_path="$GITHUB_WORKSPACE/keybox.xml"
+          if [ -f "$keybox_path" ]; then
+            output=$(python main.py "$keybox_path")
             echo "KEYBOX_CHECK_OUTPUT<<EOF" >> $GITHUB_ENV
             echo "$output" >> $GITHUB_ENV
             echo "EOF" >> $GITHUB_ENV
             echo "Keybox check output:"
             echo "$output"
           else
-            echo "Error: keybox.xml not found for checking"
+            echo "Error: keybox.xml not found at $keybox_path"
             exit 1
           fi
 
