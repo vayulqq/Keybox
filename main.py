@@ -1,10 +1,3 @@
-# Hello! Some part of this code is made by Senyx BUT
-# Special thanks to these people!
-# KimmyXYC - Certificate Checks and the base code
-# Me - I ported this owowo!
-# Hollowed Citra - wait theres is more than google and aosp keybox?!!1!
-# 4:32AM - November 19 2024
-
 import asyncio
 import aiohttp
 import re
@@ -23,7 +16,12 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, ec
-init(autoreset=True)
+
+# Disable colorama colors in non-interactive environments
+if sys.stdout.isatty():
+    init(autoreset=True)
+else:
+    init(strip=True)  # Strip ANSI colors in non-interactive environments
 current_version = "v1.4"
 
 # ==== This code is to check update
@@ -120,7 +118,6 @@ async def load_from_url():
                 raise Exception(f"Error fetching data: {response.status}")
             return await response.json()
 
-
 def parse_number_of_certificates(xml_file):
     tree = ET.parse(xml_file)
     root = tree.getroot()
@@ -132,7 +129,6 @@ def parse_number_of_certificates(xml_file):
         return count
     else:
         raise Exception('No NumberOfCertificates found.')
-
 
 def parse_certificates(xml_file, pem_number):
     tree = ET.parse(xml_file)
@@ -146,7 +142,6 @@ def parse_certificates(xml_file, pem_number):
     else:
         raise Exception("No Certificate found.")
 
-
 def load_public_key_from_file(file_path):
     with open(file_path, 'rb') as key_file:
         public_key = serialization.load_pem_public_key(
@@ -154,7 +149,6 @@ def load_public_key_from_file(file_path):
             backend=default_backend()
         )
     return public_key
-
 
 def compare_keys(public_key1, public_key2):
     return public_key1.public_bytes(
@@ -170,7 +164,7 @@ async def keybox_check_cli(keybox_path):
         pem_number = parse_number_of_certificates(keybox_path)
         pem_certificates = parse_certificates(keybox_path, pem_number)
     except Exception as e:
-        print(f"{Fore.RED}Error : {e}")
+        print(f"Error : {e}")
         return
 
     try:
@@ -179,7 +173,7 @@ async def keybox_check_cli(keybox_path):
             default_backend()
         )
     except Exception as e:
-        print(f"{Fore.RED}Error : {e}")
+        print(f"Error : {e}")
         return
 
     # Certificate Validity Verification
@@ -196,9 +190,9 @@ async def keybox_check_cli(keybox_path):
     not_valid_before_str = not_valid_before.strftime('%Y-%m-%d %H:%M:%S')
     not_valid_after_str = not_valid_after.strftime('%Y-%m-%d %H:%M:%S')
     if validity:
-        validity_status = f"{Fore.GREEN}Valid. (Valid from {not_valid_before_str} to {not_valid_after_str})"
+        validity_status = f"Valid. (Valid from {not_valid_before_str} to {not_valid_after_str})"
     else:
-        validity_status = f"{Fore.RED}Expired. (Valid from {not_valid_before_str} to {not_valid_after_str})"
+        validity_status = f"Expired. (Valid from {not_valid_before_str} to {not_valid_after_str})"
 
     # Keychain Authentication
     flag = True
@@ -240,9 +234,9 @@ async def keybox_check_cli(keybox_path):
             flag = False
             break
     if flag:
-        keychain_status = (f"{Fore.GREEN}Valid.")
+        keychain_status = "Valid."
     else:
-        keychain_status = (f"{Fore.RED}Invalid.")
+        keychain_status = "Invalid."
 
     # Root Certificate Validation
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -258,15 +252,15 @@ async def keybox_check_cli(keybox_path):
     aosp_rsa_public_key = load_public_key_from_file(aosp_rsa_pem)
     knox_public_key = load_public_key_from_file(knox_pem)
     if compare_keys(root_public_key, google_public_key):
-        cert_status = (f"{Fore.GREEN}Google Hardware Attestation")
+        cert_status = "Google Hardware Attestation"
     elif compare_keys(root_public_key, aosp_ec_public_key):
-        cert_status = (f"{Fore.YELLOW}AOSP Software Attestation(EC)")
+        cert_status = "AOSP Software Attestation(EC)"
     elif compare_keys(root_public_key, aosp_rsa_public_key):
-        cert_status = (f"{Fore.YELLOW}AOSP Software Attestation(RCA)")
+        cert_status = "AOSP Software Attestation(RCA)"
     elif compare_keys(root_public_key, knox_public_key):
-        cert_status = (f"{Fore.GREEN}Samsung Knox Attestation")
+        cert_status = "Samsung Knox Attestation"
     else:
-        cert_status = (f"{Fore.YELLOW}Unknown / Software")
+        cert_status = "Unknown / Software"
 
     # Validation of certificate revocation
     try:
@@ -288,68 +282,64 @@ async def keybox_check_cli(keybox_path):
     if not status:
         google_status = "null"
     else:
-        google_status = (f"{status['reason']}")
+        google_status = f"{status['reason']}"
 
     overrall_status = get_overrall_status(status, keychain_status, cert_status, google_status)
     oid_values = {}
     for rdn in subject:
         oid_values[rdn.oid._name] = rdn.value
 
-    keybox_parsed = (f"{certificate.subject}")
+    keybox_parsed = f"{certificate.subject}"
     keybox_string = re.search(r"2\.5\.4\.5=([0-9a-fA-F]+)", keybox_parsed) 
     if keybox_string:
         serial_number = keybox_string.group(1)
-        print(f"Keybox SN : {Fore.BLUE}{serial_number}")
+        print(f"Keybox SN : {serial_number}")
     else:
-        print(f"Keybox SN : {Fore.YELLOW}Software or Invalid")
-    print(f"Cert SN : {Fore.BLUE}{serial_number_string}")
+        print(f"Keybox SN : Software or Invalid")
+    print(f"Cert SN : {serial_number_string}")
     keybox_title = oid_values.get('title', 'N/A')
     if keybox_title != 'TEE':
-        print(f"Keybox Title : {Fore.BLUE}{keybox_title}")
+        print(f"Keybox Title : {keybox_title}")
     if 'organizationName' in oid_values:
-        print(f"Keybox Organization: {Fore.BLUE}{oid_values['organizationName']}")
+        print(f"Keybox Organization: {oid_values['organizationName']}")
     if 'commonName' in oid_values:
-        print(f"Keybox Name: {Fore.BLUE}{oid_values['commonName']}")
+        print(f"Keybox Name: {oid_values['commonName']}")
     print(f"Status : {overrall_status}")
     print(f"Keychain : {keychain_status}")
     print(f"Validity: {validity_status}")
     print(f"Root Cert : {cert_status}")
-    print(f"Check Time : {Fore.BLUE}{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Check Time : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     return overrall_status
 
-    # Im dying here
 def get_overrall_status(status, keychain_status, cert_status, google_status):
     if status is None:
-        if keychain_status == f"{Fore.GREEN}Valid.":
-            if cert_status == f"{Fore.YELLOW}Unknown / Software":
+        if keychain_status == "Valid.":
+            if cert_status == "Unknown / Software":
                 if google_status == "null":
-                    return f"{Fore.YELLOW}Valid. (Software signed)"
+                    return "Valid. (Software signed)"
                 else:
                     print(f"Something happen {status['reason']}")
-            elif cert_status in (f"{Fore.YELLOW}AOSP Software Attestation(EC)", f"{Fore.YELLOW}AOSP Software Attestation(RCA)", f"{Fore.GREEN}Samsung Knox Attestation", f"{Fore.GREEN}Google Hardware Attestation"):
+            elif cert_status in ("AOSP Software Attestation(EC)", "AOSP Software Attestation(RCA)", "Samsung Knox Attestation", "Google Hardware Attestation"):
                 cert_status_map = {
-                    f"{Fore.GREEN}Google Hardware Attestation": f"{Fore.GREEN}Valid. (Google Hardware Attestation)",
-                    f"{Fore.YELLOW}AOSP Software Attestation(EC)": f"{Fore.YELLOW}Valid. (AOSP Software EC)",
-                    f"{Fore.YELLOW}AOSP Software Attestation(RCA)": f"{Fore.YELLOW}Valid. (AOSP Software RCA)",
-                    f"{Fore.GREEN}Samsung Knox Attestation": f"{Fore.GREEN}Valid. (How did u get this? / Knox Attestation)"
+                    "Google Hardware Attestation": "Valid. (Google Hardware Attestation)",
+                    "AOSP Software Attestation(EC)": "Valid. (AOSP Software EC)",
+                    "AOSP Software Attestation(RCA)": "Valid. (AOSP Software RCA)",
+                    "Samsung Knox Attestation": "Valid. (How did u get this? / Knox Attestation)"
                 }
-                return cert_status_map.get(cert_status, f"{Fore.RED}Invalid keybox.")
+                return cert_status_map.get(cert_status, "Invalid keybox.")
             else:
-                return f"{Fore.RED}Invalid keybox."
+                return "Invalid keybox."
         else:
-            return f"{Fore.RED}Invalid Keybox."
+            return "Invalid Keybox."
     else:
         status_reason = google_status
         status_reason_map = {
-            "KEY_COMPROMISE": f"{Fore.RED}Invalid. (Key Compromised)",
-            "SOFTWARE_FLAW": f"{Fore.RED}Invalid. (Software flaw)",
-            "CA_COMPROMISE": f"{Fore.RED}Invalid. (CA Compromised)",
-            "SUPERSEDED": f"{Fore.RED}Invalid. (Suspended)"
+            "KEY_COMPROMISE": "Invalid. (Key Compromised)",
+            "SOFTWARE_FLAW": "Invalid. (Software flaw)",
+            "CA_COMPROMISE": "Invalid. (CA Compromised)",
+            "SUPERSEDED": "Invalid. (Suspended)"
         }
-        return status_reason_map.get(status_reason, f"{Fore.GREEN}Valid")
-
-
-
+        return status_reason_map.get(status_reason, "Valid")
 
 if __name__ == "__main__":
     check_for_update()
@@ -387,11 +377,11 @@ if __name__ == "__main__":
                 keybox_statuses[file_path] = overrall_status
                 os.system('cls' if os.name == 'nt' else 'clear')
 
-                if overrall_status == f"{Fore.GREEN}Valid. (Google Hardware Attestation)":
+                if overrall_status == "Valid. (Google Hardware Attestation)":
                     total_valid_keybox += 1
-                elif overrall_status == f"{Fore.YELLOW}Valid. (Software signed)":
+                elif overrall_status == "Valid. (Software signed)":
                     total_software_keybox += 1
-                elif overrall_status in [f"{Fore.RED}Invalid Keybox.", f"{Fore.RED}Invalid. (Key Compromised)", f"{Fore.RED}Invalid. (Software flaw)", f"{Fore.RED}Invalid. (CA Compromised)", f"{Fore.RED}Invalid. (Suspended)"]:
+                elif overrall_status in ["Invalid Keybox.", "Invalid. (Key Compromised)", "Invalid. (Software flaw)", "Invalid. (CA Compromised)", "Invalid. (Suspended)"]:
                     total_invalid_keybox += 1
 
         for keybox, overrall_status in keybox_statuses.items():
@@ -404,5 +394,5 @@ if __name__ == "__main__":
     elif args.keybox_path:  # If --bulk is not used, check single file
         asyncio.run(keybox_check_cli(args.keybox_path))
     else:
-        print("Error: Please provide a folder full of keybox.xml files or the path to the keybox file.")  # Modified error message
+        print("Error: Please provide a folder full of keybox.xml files or the path to the keybox file.")
         sys.exit(1)
